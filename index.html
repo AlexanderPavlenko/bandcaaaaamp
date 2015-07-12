@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<script src="thirdparty/modernizr.custom.js"></script>
+	<script src="//ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js"></script>
+	<script src="build/ableplayer.min.js"></script>
+	<script src="thirdparty/jquery.cookie.js"></script>
+	<link rel="stylesheet" href="build/ableplayer.min.css"/>
+	<style>
+		body {
+			background: #bebebe;
+			font-family: sans-serif;
+		}
+
+		.album_title {
+			font-size: 1.2em;
+			font-weight: bold;
+		}
+
+		.album_title_wrapper {
+			margin: 20px 0 10px 0;
+		}
+	</style>
+	<script>
+		getAlbum = function (id) {
+			var url = 'https://bandcamp.com/EmbeddedPlayer/album=' + id + '/size=large/artwork=small';
+			var result = new $.Deferred();
+			$.get('http://crossorigin.me/' + url, null, function (data) {
+				var album = data.slice(data.indexOf('var playerdata = '));
+				album = JSON.parse(album.slice(17, album.indexOf(';\n')));
+				result.resolve(album);
+			}, 'text');
+			return result.promise();
+		};
+		createPlayer = function (albums) {
+			var player = $('<ol class="able-playlist" data-player="audio1"></ol>');
+			albums.forEach(function (album) {
+				var album_title = '<div class="album_title_wrapper"><span class="album_title">' + album.album_title + '</span>&nbsp;(<a href="' + album.linkback + '" target="_blank">link</a>)</div>';
+				album.tracks.forEach(function (track) {
+					player.append('<li data-mp3="' + track.file['mp3-128'] + '">' + album_title + track.title + '</li>');
+					album_title = ''
+				});
+			});
+			$('body').append('<audio id="audio1" data-able-player preload="auto"></audio>');
+			$('body').append(player);
+			new AblePlayer($('#audio1'));
+		};
+
+		var ids = window.location.hash.slice(1).split(',');
+		var albums = [];
+		var promises = [];
+		ids.forEach(function (id) {
+			var promise = getAlbum(id);
+			promises.push(promise);
+			promise.then(function (album) {
+				console.log(album);
+				albums[ids.indexOf(id)] = album;
+			});
+		});
+		$.when.apply(this, promises).then(function () {
+			createPlayer(albums);
+		});
+	</script>
+</head>
+<body></body>
+</html>
