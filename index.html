@@ -58,12 +58,12 @@
 			var result = new $.Deferred();
 			var ids = [];
 			var promises = [];
-			urls.forEach(function (url) {
+			urls.forEach(function (url, i) {
 				var promise = getId(url);
 				promises.push(promise);
 				promise.then(function (id) {
 					console.log(id);
-					ids[urls.indexOf(url)] = id;
+					ids[i] = id;
 				});
 			});
 			$.when.apply(this, promises).then(function () {
@@ -81,7 +81,7 @@
 					album_title = ''
 				});
 			});
-			player_container.append('<audio id="audio1" data-able-player preload="auto"></audio>');
+			player_container.append('<audio id="audio1" data-able-player></audio>');
 			player_container.append(player);
 			return new AblePlayer($('#audio1'));
 		};
@@ -90,12 +90,12 @@
 			var ids = window.location.hash.slice(1).split(',');
 			var albums = [];
 			var promises = [];
-			ids.forEach(function (id) {
+			ids.forEach(function (id, i) {
 				var promise = getAlbum(id);
 				promises.push(promise);
 				promise.then(function (album) {
 					console.log(album);
-					albums[ids.indexOf(id)] = album;
+					albums[i] = album;
 				});
 			});
 			$.when.apply(this, promises).then(function () {
@@ -106,10 +106,16 @@
 		$(function () {
 			initializeFromLocationHash();
 			$('#make_playlist').click(function () {
-				urlsToIds($.trim($('#album_urls').val()).split('\n').map(function (line) {
+				var urls = $.trim($('#album_urls').val());
+				if (!urls) return;
+				urlsToIds(urls.split('\n').map(function (line) {
 					return $.trim(line).replace('https', 'http');
 				})).then(function (ids) {
-					window.location.hash = '#' + ids.join(',');
+					if (window.location.hash) {
+						window.location.hash += ',' + ids.join(',');
+					} else {
+						window.location.hash = ids.join(',');
+					}
 					window.location.reload();
 				});
 			});
