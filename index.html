@@ -12,6 +12,10 @@
 			font-family: sans-serif;
 		}
 
+		#album_urls {
+			width: 50%;
+		}
+
 		.album_title {
 			font-size: 1.2em;
 			font-weight: bold;
@@ -22,18 +26,54 @@
 		}
 	</style>
 	<script>
-		getAlbum = function (id) {
-			var url = 'https://bandcamp.com/EmbeddedPlayer/album=' + id + '/size=large/artwork=small';
+		var corsProxied = function (url) {
+			return 'http://crossorigin.me/' + url;
+		};
+		var getId = function (url) {
 			var result = new $.Deferred();
-			$.get('http://crossorigin.me/' + url, null, function (data) {
-				var album = data.slice(data.indexOf('var playerdata = '));
-				album = JSON.parse(album.slice(17, album.indexOf(';\n')));
-				result.resolve(album);
-			}, 'text');
+			$.ajax(corsProxied(url), {
+				success: function (data) {
+					var id = data.slice(data.indexOf('tralbum_param: '));
+					id = $.trim(id.slice(id.indexOf('value:') + 6, id.indexOf('}')));
+					result.resolve(id);
+				},
+				dataType: 'html'
+			});
 			return result.promise();
 		};
-		createPlayer = function (albums) {
+		var getAlbum = function (id) {
+			var url = 'http://bandcamp.com/EmbeddedPlayer/album=' + id + '/size=large/artwork=small';
+			var result = new $.Deferred();
+			$.ajax(corsProxied(url), {
+				success: function (data) {
+					var album = data.slice(data.indexOf('var playerdata = '));
+					album = JSON.parse(album.slice(17, album.indexOf(';\n')));
+					result.resolve(album);
+				},
+				dataType: 'html'
+			});
+			return result.promise();
+		};
+		var urlsToIds = function (urls) {
+			var result = new $.Deferred();
+			var ids = [];
+			var promises = [];
+			urls.forEach(function (url) {
+				var promise = getId(url);
+				promises.push(promise);
+				promise.then(function (id) {
+					console.log(id);
+					ids[urls.indexOf(url)] = id;
+				});
+			});
+			$.when.apply(this, promises).then(function () {
+				result.resolve(ids);
+			});
+			return result.promise();
+		};
+		var createPlayer = function (albums) {
 			var player = $('<ol class="able-playlist" data-player="audio1"></ol>');
+			var player_container = $('#player');
 			albums.forEach(function (album) {
 				var album_title = '<div class="album_title_wrapper"><span class="album_title">' + album.album_title + '</span>&nbsp;(<a href="' + album.linkback + '" target="_blank">link</a>)</div>';
 				album.tracks.forEach(function (track) {
@@ -41,26 +81,49 @@
 					album_title = ''
 				});
 			});
-			$('body').append('<audio id="audio1" data-able-player preload="auto"></audio>');
-			$('body').append(player);
-			new AblePlayer($('#audio1'));
+			player_container.append('<audio id="audio1" data-able-player preload="auto"></audio>');
+			player_container.append(player);
+			return new AblePlayer($('#audio1'));
+		};
+		var initializeFromLocationHash = function () {
+			if (!window.location.hash) return;
+			var ids = window.location.hash.slice(1).split(',');
+			var albums = [];
+			var promises = [];
+			ids.forEach(function (id) {
+				var promise = getAlbum(id);
+				promises.push(promise);
+				promise.then(function (album) {
+					console.log(album);
+					albums[ids.indexOf(id)] = album;
+				});
+			});
+			$.when.apply(this, promises).then(function () {
+				createPlayer(albums);
+			});
 		};
 
-		var ids = window.location.hash.slice(1).split(',');
-		var albums = [];
-		var promises = [];
-		ids.forEach(function (id) {
-			var promise = getAlbum(id);
-			promises.push(promise);
-			promise.then(function (album) {
-				console.log(album);
-				albums[ids.indexOf(id)] = album;
+		$(function () {
+			initializeFromLocationHash();
+			$('#make_playlist').click(function () {
+				urlsToIds($.trim($('#album_urls').val()).split('\n').map(function (line) {
+					return $.trim(line).replace('https', 'http');
+				})).then(function (ids) {
+					window.location.hash = '#' + ids.join(',');
+					window.location.reload();
+				});
 			});
-		});
-		$.when.apply(this, promises).then(function () {
-			createPlayer(albums);
 		});
 	</script>
 </head>
-<body></body>
+<body>
+
+<div>
+	Bandcamp albums urls, one per line:<br/>
+	<textarea id="album_urls"></textarea><br/>
+	<button id="make_playlist">Make playlist</button>
+</div>
+<div id="player"></div>
+
+</body>
 </html>
